@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+*.log
+__pycache__/
+.venv/
+.idea/
+.vscode/
+.pytest_cache/
+.ruff_cache/
+*.db
+*.egg-info/
+.coverage
+htmlcov/
