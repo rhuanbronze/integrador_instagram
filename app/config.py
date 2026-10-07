@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     mysql_user: str = Field(min_length=1)
     mysql_password: SecretStr
     timezone: str = "America/Cuiaba"
-    account_collection_hours: float = Field(default=24, gt=0)
-    media_collection_hours: float = Field(default=6, gt=0)
+    account_cron_hour: int = Field(default=7, ge=0, le=23)
+    account_cron_minute: int = Field(default=0, ge=0, le=59)
+    media_cron_hours: str = Field(
+        default="0,6,12,18", pattern=r"^(?:[01]?\d|2[0-3])(?:,(?:[01]?\d|2[0-3]))*$"
+    )
+    media_cron_minute: int = Field(default=0, ge=0, le=59)
     media_insights_lookback_days: int = Field(default=90, ge=0)
     request_timeout_seconds: float = Field(default=30, gt=0)
     request_max_retries: int = Field(default=3, ge=0, le=10)

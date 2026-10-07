@@ -104,8 +104,10 @@ Copie `.env.example` para `.env` e preencha as credenciais. Secrets vazios são 
 | `MYSQL_USER` | `instagram_bi` | Usuário da aplicação |
 | `MYSQL_PASSWORD` | obrigatório | Senha do MySQL |
 | `TIMEZONE` | `America/Cuiaba` | Calendário dos snapshots/scheduler |
-| `ACCOUNT_COLLECTION_HOURS` | `24` | Intervalo do job account, aceita frações positivas |
-| `MEDIA_COLLECTION_HOURS` | `6` | Intervalo do job media |
+| `ACCOUNT_CRON_HOUR` | `7` | Hora diária do job account (0–23) |
+| `ACCOUNT_CRON_MINUTE` | `0` | Minuto do job account (0–59) |
+| `MEDIA_CRON_HOURS` | `0,6,12,18` | Horas do job media, separadas por vírgula, sem espaços (0–23) |
+| `MEDIA_CRON_MINUTE` | `0` | Minuto do job media (0–59) |
 | `MEDIA_INSIGHTS_LOOKBACK_DAYS` | `90` | Idade máxima para novas coletas de insights de mídia |
 | `REQUEST_TIMEOUT_SECONDS` | `30` | Timeout HTTP por etapa da requisição |
 | `REQUEST_MAX_RETRIES` | `3` | Retries além da chamada inicial |
@@ -113,7 +115,7 @@ Copie `.env.example` para `.env` e preencha as credenciais. Secrets vazios são 
 | `LOG_LEVEL` | `INFO` | DEBUG, INFO, WARNING, ERROR ou CRITICAL |
 | `AUDIENCE_COLLECTION_ENABLED` | `true` | Demografia opcional |
 | `COLLECT_ON_STARTUP` | `true` | Executa account seguido de media a cada inicialização |
-| `SCHEDULER_ENABLED` | `true` | Habilita os intervalos automáticos |
+| `SCHEDULER_ENABLED` | `true` | Habilita os agendamentos automáticos |
 | `MYSQL_ROOT_PASSWORD` | opcional no Compose | Apenas MySQL local; default igual à senha local |
 
 O usuário MySQL precisa de SELECT/INSERT/UPDATE e permissões de DDL para migrations
@@ -171,7 +173,7 @@ Neste caso configure `MYSQL_HOST` com o host externo, não `mysql` ou `localhost
 ## 8. Dokploy
 
 1. Cadastre o repositório como aplicação Dockerfile, contexto `.`, arquivo `Dockerfile`.
-2. Configure todas as variáveis obrigatórias da seção 5 e os intervalos desejados.
+2. Configure todas as variáveis obrigatórias da seção 5 e os horários desejados.
 3. Use `MYSQL_HOST`/`MYSQL_PORT` da rede privada do banco externo. Não use localhost para
    acessar outro container. Verifique DNS, firewall e permissões do usuário.
 4. Configure a porta interna **8000** e health check `/health`. Use HTTPS no proxy público.
@@ -228,16 +230,23 @@ as views anteriores; não recupera as duplicidades removidas nem os valores da c
 
 ## 10. Jobs, resiliência e auditoria
 
-- **account (24h):** perfil/counters → snapshot diário → insights do dia anterior → demografia.
-- **media (6h):** `/me/media` com paginação completa → upsert de todas as publicações disponíveis
+- **account (todos os dias às 07:00):** perfil/counters → snapshot diário → insights do dia anterior → demografia.
+- **media (00:00, 06:00, 12:00 e 18:00):** `/me/media` com paginação completa → upsert de todas as publicações disponíveis
   → insights para mídias publicadas nos últimos 90 dias, por default.
 - **all:** agenda account e media em sequência; retorna os dois IDs. O segundo registro fica
-  RUNNING enquanto aguarda o primeiro. O intervalo conta desde o início do processo, não
-  corresponde a horários fixos do calendário. Reboots reiniciam a agenda e executam a coleta inicial.
+  RUNNING enquanto aguarda o primeiro.
+
+Os horários seguem `TIMEZONE=America/Cuiaba`. O scheduler usa cron, portanto reiniciar o
+processo mantém os próximos horários do calendário. As variáveis `ACCOUNT_COLLECTION_HOURS`
+e `MEDIA_COLLECTION_HOURS` foram substituídas pelas configurações cron da seção 5; atualize
+o ambiente do Dokploy e faça redeploy. A coleta inicial continua independente da agenda:
+`COLLECT_ON_STARTUP=true` executa account e media a cada inicialização. Para executar apenas
+nos horários agendados, configure `COLLECT_ON_STARTUP=false`. Os endpoints manuais também
+continuam disponíveis fora desses horários.
 
 Um lock `GET_LOCK` no MySQL evita overlap entre processos usando o mesmo database. Uma
-chamada manual concorrente recebe 409. Se um intervalo disparar enquanto outra coleta está
-ativa, o job daquele intervalo é pulado e uma mensagem INFO é registrada.
+chamada manual concorrente recebe 409. Se um horário agendado disparar enquanto outra coleta
+está ativa, aquele job é pulado e uma mensagem INFO é registrada.
 
 ### Aplicabilidade de métricas e warnings
 
@@ -317,11 +326,14 @@ nas fixtures, sem chamar a Meta. Cobrem paginação/token somente no header, ret
 métrica inválida/ausente, follows/unfollows, delta diário, upsert, múltiplos snapshots, lookback,
 auditoria, cancelamento, auth HTTP, secrets mascarados, UTC, upgrade/downgrade, comparação
 schema/models e views com divisão por zero. A geração de DDL também é testada para MySQL.
+Os testes do scheduler verificam horários cron no fuso de Cuiabá, virada do dia, configuração
+por ambiente e rejeição de horas/minutos inválidos.
 
-O relatório [VALIDATION.md](VALIDATION.md) registra **80 testes aprovados com MySQL 8.4** e
+O relatório [VALIDATION.md](VALIDATION.md) registra **94 testes aprovados e 2 integrações
+MySQL puladas** na revisão do agendamento de 07/10/2026, com Ruff e Docker build aprovados.
+A validação anterior de 06/10 registra **80 testes aprovados com MySQL 8.4** e
 **78 aprovados/2 integrações puladas na imagem Python 3.12**, incluindo aplicabilidade de
-métricas e warnings esperados, UPSERTs, migration
-incremental de bases com duplicidades e novas views. SQLite
+métricas, UPSERTs, migration incremental de bases com duplicidades e views. SQLite
 não substitui a validação MySQL de DDL, locks e views. Antes de produção valide as respostas
 reais da conta, escopos, disponibilidade/latência e semântica das métricas com a versão configurada.
 
@@ -363,7 +375,7 @@ intradiário anterior à implantação; não é possível reconstruí-lo a parti
 
 | Sintoma | Verificação |
 |---|---|
-| Falha de configuração no boot | Secrets não vazios, porta, timezone e intervalos positivos |
+| Falha de configuração no boot | Secrets não vazios, porta, timezone, horas 0–23 e minutos 0–59 |
 | Database unavailable/migration failed | Host/porta, banco criado, usuário, grants DDL e migrations |
 | Health ok, job FAILED por OAuth | Token expirado/revogado, app/conta corretos; rotacione no ambiente |
 | Métrica NULL com warning | Tipo de mídia, versão, permissão, idade e tamanho da audiência |
@@ -371,7 +383,7 @@ intradiário anterior à implantação; não é possível reconstruí-lo a parti
 | Insights atrasados | Aguarde atualização da Meta; snapshots refletem o valor retornado |
 | Menos mídias que esperado | API só entrega objetos acessíveis ao token; coleção não recupera removidos |
 | Stories ausentes | `/me/media` não garante Stories; suporte é para tipos efetivamente retornados |
-| Job media longo/rate limit | Aumente intervalo/reduza lookback; métrica individual aumenta chamadas |
+| Job media longo/rate limit | Configure menos horários/reduza lookback; métrica individual aumenta chamadas |
 | 409 em chamada manual | Outra coleta detém o lock; consulte status e aguarde conclusão |
 | RUNNING após crash | Próxima coleta recupera auditoria; verifique disponibilidade do banco |
 | Dados antigos sem novos insights | Metadados preservados; idade acima do lookback configurado |

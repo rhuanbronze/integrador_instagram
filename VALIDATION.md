@@ -1,6 +1,27 @@
 # Validação executada
 
-Revisão de aplicabilidade de métricas: **06/10/2026**, timezone do projeto `America/Cuiaba`.
+## Revisão do agendamento — 07/10/2026
+
+Os jobs usam cron no timezone `America/Cuiaba`: account às **07:00** e media às
+**00:00, 06:00, 12:00 e 18:00**. A configuração e `.env.example` usam as novas variáveis
+`ACCOUNT_CRON_HOUR`, `ACCOUNT_CRON_MINUTE`, `MEDIA_CRON_HOURS` e `MEDIA_CRON_MINUTE`.
+
+| Verificação | Resultado |
+|---|---|
+| Suíte no host | **94 passed, 2 skipped**, sem warnings |
+| Ruff | **All checks passed** |
+| Compileall de app, alembic e tests | **Sucesso** |
+| Docker build `instagram-bi:local` | **Sucesso** |
+
+Os dois testes pulados exigem MySQL descartável. Os 16 novos casos cobrem defaults,
+próximas execuções em UTC/Cuiabá, virada do dia, configuração por ambiente, submissão
+dos jobs e validação de horas/minutos. Não houve alteração de schema ou migration.
+Nenhuma credencial real foi utilizada e nenhuma chamada autenticada à Meta foi feita.
+A coleta inicial continua controlada separadamente por `COLLECT_ON_STARTUP`.
+
+## Validação anterior — 06/10/2026
+
+Revisão de aplicabilidade de métricas, timezone do projeto `America/Cuiaba`.
 
 ## Resultados
 

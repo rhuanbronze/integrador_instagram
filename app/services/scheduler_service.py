@@ -1,12 +1,10 @@
 import logging
-from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 from app.services.instagram_service import InstagramService, JobBusyError
-from app.utils.dates import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +21,18 @@ def start_scheduler(service: InstagramService) -> AsyncIOScheduler:
         except Exception:
             logger.error("Unable to start scheduled %s job; verify database", job_type)
 
-    for job_type, hours in (
-        ("account", service.settings.account_collection_hours),
-        ("media", service.settings.media_collection_hours),
+    for job_type, hour, minute in (
+        ("account", service.settings.account_cron_hour, service.settings.account_cron_minute),
+        ("media", service.settings.media_cron_hours, service.settings.media_cron_minute),
     ):
         scheduler.add_job(
             collect,
-            trigger=IntervalTrigger(hours=hours, timezone=zone),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=zone),
             args=[job_type],
             id=job_type,
             max_instances=1,
             coalesce=True,
             misfire_grace_time=300,
-            next_run_time=utcnow() + timedelta(hours=hours),
         )
     scheduler.start()
     return scheduler
