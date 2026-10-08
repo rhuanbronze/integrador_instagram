@@ -119,8 +119,8 @@ Copie `.env.example` para `.env` e preencha as credenciais. Secrets vazios são 
 | `MYSQL_ROOT_PASSWORD` | opcional no Compose | Apenas MySQL local; default igual à senha local |
 
 O usuário MySQL precisa de SELECT/INSERT/UPDATE e permissões de DDL para migrations
-(CREATE, ALTER, INDEX, DROP, CREATE VIEW). O usuário do Power BI deve ter somente SELECT.
-Não use o usuário root na aplicação. O database externo deve existir antes de iniciar.
+(CREATE, ALTER, INDEX, DROP, CREATE VIEW). É recomendado um segundo usuário do banco que deverá ter somente SELECT.
+É possível usar tanto um banco externo em que deverá ser configurado na .env, quanto deixar a própria aplicação criar um banco próprio.
 
 ## 6. Execução local com Python
 
@@ -231,7 +231,7 @@ as views anteriores; não recupera as duplicidades removidas nem os valores da c
 ## 10. Jobs, resiliência e auditoria
 
 - **account (todos os dias às 07:00):** perfil/counters → snapshot diário → insights do dia anterior → demografia.
-- **media (00:00, 06:00, 12:00 e 18:00):** `/me/media` com paginação completa → upsert de todas as publicações disponíveis
+- **media (07:00, 09:00, 12:00 e 14:00):** `/me/media` com paginação completa → upsert de todas as publicações disponíveis
   → insights para mídias publicadas nos últimos 90 dias, por default.
 - **all:** agenda account e media em sequência; retorna os dois IDs. O segundo registro fica
   RUNNING enquanto aguarda o primeiro.
@@ -347,7 +347,6 @@ reais da conta, escopos, disponibilidade/latência e semântica das métricas co
    GRANT SELECT ON instagram_bi.* TO 'powerbi'@'%';
    ```
 
-   Restrinja o host/permissão à rede real do BI em produção.
 3. Power BI → Obter dados → Banco de dados MySQL → servidor/porta e `instagram_bi`.
 4. Importe as views abaixo e, para crescimento, a tabela histórica de media insights.
 5. Para Power BI Service, configure gateway de dados quando o MySQL estiver em rede privada.
